@@ -1,0 +1,339 @@
+
+#Lake Trout model
+model {
+
+#year one abundance
+for(a in 1:A){
+  N[a,1]~dpois(Ny1[a])
+  logN[a,1]<-log(N[a,1])
+}#a
+
+
+#process model
+for(t in 2:T){
+  logN[1,t]~dnorm(log(alpha)+log(Nsp[t-1])-beta*Nsp[t-1], taur)
+  N[1,t]<-exp(logN[1,t])
+  for(a in 2:A){
+    logN[a,t]~dnorm(logN[a-1,t-1]-Z[a,t], tauN[a])
+    N[a,t]<-exp(logN[a,t])
+  }#a
+}#t
+
+
+
+
+#prior for recruitment variability
+sigmar<-0.3051
+taur<-1/(sigmar^2)
+
+#prior for abundance variablity
+for(a in 1:A){
+  sigmaN1[a]~dunif(0, 5)
+  tauN[a]<-1/(sigmaN[a]^2)
+}#a
+
+#stock-recruitment parameters from Hansen et al. 2019
+alphaMu<-2.05
+betaMu<-0.000003734
+taualpha<-1/1.36
+taubeta<-1/0.00000000000083
+alpha~dnorm(alphaMu, taualpha)T(0,)
+beta~dnorm(betaMu, taubeta)T(0,)
+
+#spawner abundance
+for(t in 1:T){
+    for(a in 1:A){
+       Nsp1[a,t]<-(N[a,t]*pmat[a])
+    }#a
+    Nsp[t]<-sum(Nsp1[,t])
+}#t   
+ 
+#natural mortality from Hansen et al. 2019
+MuM<-0.129
+TauM<-1/0.00014
+for(t in 1:T){
+  M[t]~dnorm(MuM, TauM)T(0,)
+}#t
+
+
+#total mortality
+for(t in 1:T){
+   for(a in 1:A){
+     Z[a,t]<-F[a,t]+M[t]+FF[a,t]+FA[a]+FOS[a,t]+FOF[a,t]
+   }#a
+}#t
+   
+   
+#removal netting mortality with consistent mesh size
+for(t in 1:T){
+   for(a in 1:A){
+     F[a,t]<-(effortS[t]*q[a])
+  }#a
+}#t
+
+#prior for catchability 
+for(a in 1:A){
+  q[a]~dunif(0, 0.1)
+}#a
+
+#observed removal netting data
+for(a in 1:A){
+  for(t in 1:T){
+    ybsgn[a,t]~dnorm((F[a,t]/Z[a,t])*N[a,t]*1-exp(-Z[a,t]), tauS)T(0,)
+  }#a
+}#t
+
+#prior for observation error
+sigmaS~dunif(0, 5000)
+tauS<-1/(sigmaS^2)
+
+  
+#spawner netting with consistent mesh size 
+for(t in 1:T){
+  for(a in 1:A){
+    FF[a,t]<-(effortF[t]*qf[a])
+  }#a
+}#t
+
+#prior for catchability 
+for(a in 1:A){
+  qf[a]~dunif(0, 0.1)
+}
+
+#observed spawner netting data
+for(a in 1:A){
+  for(t in 1:T){
+   ybfgn[a,t]~dnorm((FF[a,t]/Z[a,t])*N[a,t]*1-exp(-Z[a,t]), tauF)T(0,)
+  }#t
+}#a
+
+#prior for observation error
+sigmaF~dunif(0, 500)
+tauF<-1/(sigmaF^2)
+
+#angling removals
+FA[1]<-0
+for(a in 2:A){
+  FA[a]~dunif(0, 1)
+}#a
+
+#observations for angler catch
+for(a in 1:A){
+  for(t in 1:T){
+    ya[a,t]~dnorm((FA[a]/Z[a,t])*N[a,t]*1-exp(-Z[a,t]), tauA)T(0,)
+  }#t
+}#a
+
+#prior for observation error 
+sigmaA~dunif(0, 5000)
+tauA<-1/(sigmaA^2) 
+ 
+#index netting observed data
+for(a in 1:A){
+  qassess[a]~dunif(0, 0.1)
+  for(t in 1:T){
+    yassess[a,t]~dnorm(N[a,t]*qassess[a], tauAs)T(0,)
+  }#t
+}#a
+
+#prior for observation error 
+sigmaAs~dunif(0, 5000)
+tauAs<-1/(sigmaAs^2) 
+
+
+#other removals from non-standard nets
+#removals
+for(t in 1:T){
+  for(a in 1:A){
+    FOS[a,t]<-(effortOS[t]*qOS[a])
+  }#a
+}#t
+
+#prior for observation error   
+sigmaFOS~dunif(0, 50)
+tauFOS<-1/(sigmaFOS^2)
+   
+for(a in 1:A){
+  qOS[a]~dunif(0, 0.1)
+}#a
+
+#observation model
+for(a in 1:A){
+  for(t in 1:T){
+   yotherS[a,t]~dnorm((FOS[a,t]/Z[a,t])*N[a,t]*1-exp(-Z[a,t]), tauOS)T(0,)
+  }#a
+}#t
+ 
+#prior for observation error 
+sigmaOS~dunif(0, 5000)
+tauOS<-1/(sigmaOS^2) 
+ 
+ #spanwer
+for(t in 1:T){
+     for(a in 1:A){
+      FOF[a,t]<-(effortOF[t]*qOF[a])
+  }#a
+}#t
+   
+for(a in 1:A){
+  qOF[a]~dunif(0, 0.01)
+}#a
+
+#observation model
+for(a in 2:A){
+  for(t in 1:T){
+   yotherF[a,t]~dnorm((FOF[a,t]/Z[a,t])*N[a,t]*1-exp(-Z[a,t]), tauOF)T(0,)
+  }#a
+}#t
+
+#prior for observation error  
+sigmaOF~dunif(0, 5000)
+tauOF<-1/(sigmaOF^2) 
+ 
+ 
+
+ }#end model
+
+
+
+
+
+
+#Bull Trout model
+
+model {
+
+#year one abundance
+for(a in 1:A){
+  N[a,1]~dpois(Ny1[a])
+  logN[a,1]<-log(N[a,1])
+}#a
+
+
+
+#Process model
+for(t in 2:T){
+  logN[1,t]~dnorm(mu[1,t], taur)
+  mu[1,t]<-log(redds[t])+log(alpha)-beta*redds[t]
+  N[1,t]<-exp(logN[1,t])
+  for(a in 2:A){
+    logN[a,t]~dnorm(logN[a-1, t-1]-Z[a-1,t-1], tauN)
+    N[a,t]<-exp(logN[a,t])
+  }#a
+}#t
+
+#prior for recruitemnt
+sigmar~dunif(0, 2)
+taur<-1/(sigmar*sigmar)
+
+#stock-recruitment priors
+alpha~dunif(0, 15)
+beta~dunif(0, 0.5)
+
+#prior for abundance variation
+sigmaN~dunif(0, 1.1)
+tauN<-1/(sigmaN*sigmaN)
+
+#===================================================mortality estimation
+#convert natural mortality estimates to instantaneous  
+for(t in 1:(T-1)){
+  slogit[t]<-b0+b1*lkt[t]
+  sa[t]<-exp(slogit[t])/(1+exp(slogit[t]))
+  sadult[t]<-sa[t]
+  M[t]<--log(1-(1-sadult[t]))
+}#t
+ 
+ 
+#fishing mortality
+for(t in 1:(T-1)){
+  for(a in 1:(A-1)){
+  #total mortality
+  Z[a,t]<-Fs[a,t]+M[t]+Ff[a,t]
+  #removal mortality model
+  Fs[a,t]<-effortS_F[t]*pmortS[a]
+  Ff[a,t]~dunif(0,0.5)
+  }#a
+}#t
+
+#prior for mortality probability in nets
+for(a in 1:(A-1)){
+ pmortS[a]~dbeta(1,1)
+}#a
+
+#removal netting
+for(t in 1:(T-1)){
+  for(a in 1:(A-1)){
+    dS[a,t]~dnorm((Fs[a,t]/Z[a,t])*N[a,t]*(1-exp(-Z[a,t])), taudS)T(0,)
+  }#a
+}#t
+
+#variation in removal netting
+sds~dunif(0, 100)
+taudS<-1/sds^2
+
+#spawner netting
+for(t in 1:(T-1)){
+  for(a in 1:(A-1)){
+   dF[a,t]~dnorm((Ff[a,t]/Z[a,t])*N[a,t]*(1-exp(-Z[a,t])), taudF)T(0,)
+  }#a
+}#t
+
+#variation in removal netting
+sdf~dunif(0, 100)
+taudF<-1/sdf^2
+
+#============================================observation model
+#spawner netting
+for(a in 1:A){
+  q[a]~dunif(0, .05)
+}#a
+
+for(a in 1:A){
+  for(t in 1:T){
+    ybsgn[a,t]~dnorm(N[a,t]*effortS[t]*q[a], tauY)T(0,)
+  }#a
+}#t
+
+sY~dunif(0, 10)
+tauY<-1/sY^2
+
+
+###survival model
+
+# Priors and constraints
+for (t in 1:(n.occasions-1)){
+   logit(phi[t])<-b0+b1*lkt1[t]         # Priors for survival
+   logit(p[t])<-b0p+b1p*eff[t]           # Priors for recapture
+}
+   
+b0~dnorm(0, 0.00001)
+b1~dnorm(0, 0.00001)
+
+b0p~dnorm(0, 0.00001)
+b1p~dnorm(0, 0.00001)
+   
+# Define the multinomial likelihood
+for (t in 1:(n.occasions-1)){
+   marr[t,1:n.occasions] ~ dmulti(pr[t, ], rel[t])
+   }
+# Define the cell probabilities of the m-array
+# Main diagonal
+for (t in 1:(n.occasions-1)){
+   qp[t] <- 1-p[t]                # Probability of non-recapture
+   pr[t,t] <- phi[t]*p[t]
+   # Above main diagonal
+   for (j in (t+1):(n.occasions-1)){
+      pr[t,j] <- prod(phi[t:j])*prod(qp[t:(j-1)])*p[j]
+      } #j
+   # Below main diagonal
+   for (j in 1:(t-1)){
+      pr[t,j] <- 0
+      } #j
+   } #t
+# Last column: probability of non-recapture
+for (t in 1:(n.occasions-1)){
+   pr[t,n.occasions] <- 1-sum(pr[t,1:(n.occasions-1)])
+   } #t
+
+
+ }#end model
